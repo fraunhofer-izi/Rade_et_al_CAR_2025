@@ -1,0 +1,47 @@
+# project and workdata paths
+base:
+  homes:  "<path to repo>"
+  workdata:  "<path to data>/"
+
+clinical_data:
+  excel: "data/clinical_table_DF_2024_10_28.xlsx"
+  rds: "data/clinical_table_DF_2024_10_28.Rds"
+
+ukl_b1:
+  fastq:  "<path to fastq>"
+  data_dl:  "<path to data>/cohorts/grieb/"
+  work:  "<path to data>/cohorts/grieb/"
+  seurat:  "<path to data>/cohorts/grieb/seurat/"
+  phenodata:  "data/clinicopathological_discovery.csv"
+
+ukl_b2:
+  fastq:  "<path to fastq>"
+  data_dl:  "<path to data>/cohorts/ukl_batch_2/cellranger/"
+  work:  "<path to data>/cohorts/ukl_batch_2/"
+  seurat:  "<path to data>/cohorts/ukl_batch_2/seurat/"
+  phenodata:  "data/clinicopathological_validation.csv"
+  demux:  "data/demux_results.csv"
+
+ukl_b3:
+  fastq:  "<path to fastq>"
+  data_dl:  "<path to data>/cohorts/ukl_batch_3/cellranger/"
+  work:  "<path to data>/cohorts/ukl_batch_3/"
+  seurat:  "<path to data>/cohorts/ukl_batch_3/seurat/"
+
+ukl_b4:
+  fastq:  "<path to fastq>"
+  data_dl:  "<path to data>/cohorts/ukl_batch_4/cellranger/"
+  work:  "<path to data>/cohorts/ukl_batch_4/"
+  seurat:  "<path to data>/cohorts/ukl_batch_4/seurat/"
+
+ukl_b5:
+  fastq:  "<path to fastq>"
+  data_dl:  "<path to data>/cohorts/ukl_batch_5/cellranger/"
+  work:  "<path to data>/cohorts/ukl_batch_5/"
+  seurat:  "<path to data>/cohorts/ukl_batch_5/seurat/"
+
+
+refs: "<path to data>/references/"
+
+meta_pub:
+  work:  "<path to data>/meta_pub/figshare/"
