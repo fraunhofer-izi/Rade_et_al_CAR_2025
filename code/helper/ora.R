@@ -123,6 +123,22 @@ run_nmf_ora = function (
     msig_df$TermID = gsub("Oxidative-phosphorylation", "OXPHOS", msig_df$TermID)
     colnames(msig_df) = c("gs_name", "gene_symbol")
     msig_list = split(x = msig_df$gene_symbol, f = msig_df$gs_name)
+  } else if (category == "Tcell") {
+    mir = readRDS("data/signatures/mir_gene_set_collection.Rds")
+    msig_df = mir
+    msig_df = mir[!grepl("global", mir$TermID), ]
+    msig_df$GeneID = gsub("MT\\.", "MT-", msig_df$GeneID)
+    msig_df$TermID = gsub("Oxidative-phosphorylation", "OXPHOS", msig_df$TermID)
+    colnames(msig_df) = c("gs_name", "gene_symbol")
+
+    t = msig_df[!duplicated(msig_df$gs_name), ]
+    t$gs_name_1 = gsub(" \\(.+", "", t$gs_name)
+    d = t[duplicated(t$gs_name_1), ]
+    msig_df = msig_df[!msig_df$gs_name %in% d, ]
+    msig_df$gs_name = gsub(" \\(.+", "", msig_df$gs_name)
+
+    msig_list = split(x = msig_df$gene_symbol, f = msig_df$gs_name)
+
   } else {
     msig_df = msigdbr::msigdbr(
       species = "Homo sapiens", category = category, subcategory = subcategory

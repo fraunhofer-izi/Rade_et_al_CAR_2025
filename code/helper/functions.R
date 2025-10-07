@@ -13,6 +13,8 @@ surv_plot = function(
     y_anno = .12,
     conf.int = T,
     font.size = 9,
+    anno.size = 2.3,
+    nr.size = 2.5,
     ...
 ) {
 
@@ -22,7 +24,7 @@ surv_plot = function(
   survModel = survfit(formula, data=surv.obj)
   survModel$call$formula = formula
 
-  surv.pl = ggsurvplot(
+  surv.pl = survminer::ggsurvplot(
     survModel,
     conf.int = conf.int,
     conf.int.alpha = .4,
@@ -37,7 +39,7 @@ surv_plot = function(
     size = .7,
     ggtheme = mytheme(base_size = font.size),
     tables.theme = theme_cleantable(),
-    risk.table.fontsize = 2.5,
+    risk.table.fontsize = nr.size,
     risk.table.title = " ",
     risk.table.pos = "in",
     risk.table = "absolute",
@@ -80,7 +82,7 @@ surv_plot = function(
 
   surv.pl$plot = surv.pl$plot + annotate(
     "richtext", x = x_anno, y = y_anno, hjust = 0, vjust=0, label = anno,
-    size = 2.3, label.color=NA, fill=NA
+    size = anno.size, label.color=NA, fill=NA
   )
 
   surv.pl$table = surv.pl$table +
@@ -131,20 +133,20 @@ cox_table = function(
   target = matrix(unlist(l), ncol = 1)
 
   tabtext = cbind(
-    format(round(tabtext[, 1, drop = F], digits=2)),
+    format(round(exp(tabtext[, 1, drop = F]), digits=2)),
     target
   )
 
-  coi = log(summary(nfit)$conf.int[, 3:4])
+  coi = (summary(nfit)$conf.int[, 3:4])
   coi = matrix(coi, ncol=2)
   coi = format(round(coi, digits=2))
 
   lhr = paste0(tabtext[, 1], " [", coi[, 1], ", ", coi[, 2], "]")
   tabtext[, 1] = lhr
   rownames(tabtext) = leg.txt
-  colnames(tabtext) = c("  logHR [95% CI]  ", "  p-value  ")
+  colnames(tabtext) = c("  HR [95% CI]  ", "  p-value  ")
 
-  ggtexttable(tabtext, theme = ttheme("light", base_size = 9))
+  ggtexttable(tabtext, theme = ttheme("light", base_size = 8))
 
 }
 
@@ -656,10 +658,107 @@ wlx_test_dor = function(
 }
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# DGEA | Spectra
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+dgea_spectra = function(
+    obj,
+    .target = "celltype_short_3",
+    group = "BEST_RESPONSE_CONSENSUS",
+    ctrs.grp1 = "non-CR",
+    ctrs.grp2 = "CR",
+    split.by.tp = T,
+    min.pct = .25,
+    min.ave = 0.001,
+    logfc.threshold = log2(1.25),
+    .min.cells = 500,
+    subsample = F,
+    subsample.n = 200
+){
+
+  se.w = obj
+  se.w@meta.data = droplevels(se.w@meta.data)
+
+  se.w@meta.data[[.target]] = gsub("_", "\\.", se.w@meta.data[[.target]])
+  if(split.by.tp == T) {
+    se.w$TMP  = paste0(se.w@meta.data[[.target]], "_", se.w@meta.data$TIMEPOINT)
+    tbl = as.data.frame.matrix(table(se.w$TMP, se.w@meta.data[[group]]))
+    tbl = tbl[, colnames(tbl) %in% c(ctrs.grp1, ctrs.grp2)]
+    tbl = tbl[rowSums2(tbl > .min.cells) == 2, ]
+    print(tbl)
+
+  } else {
+    se.w$TMP = se.w@meta.data[[.target]]
+    print(table(se.w@meta.data[[.target]], se.w@meta.data[[group]]))
+  }
+
+  res.wlx = run_wilx(
+    obj = se.w, target = "TMP", min.cells = .min.cells,
+    lfc.thresh = 0, min.pct.thres = 0,
+    contrast.group = group, contrast = c(ctrs.grp1, ctrs.grp2),
+    subsample = subsample, subsample.n = subsample.n
+  )
+
+  res.wlx$celltype = gsub("_.+", "", res.wlx$cluster)
+  res.wlx$timepoint = gsub(".+_", "", res.wlx$cluster)
+  res.wlx[res.wlx$pct.1 == 0 & res.wlx$pct.2 == 0, ]$avg_log2FC = 0
+
+  if(split.by.tp == T){
+    obj.l = Split_Object(se.w, split.by = .target, threads = 3)
+  } else {
+    obj.l = list(se.w)
+  }
+  ave.stats = parallel::mclapply(obj.l, function(x){
+    ave.stats = GetMatrixFromSeuratByGroupMulti(
+      obj = x, features = rownames(x),
+      group1 = group, group2 = "TIMEPOINT", perc_expr_thres = min.ave
+    )
+    ave.stats.grp1 = ave.stats$exp_mat[, grepl(paste0("^", ctrs.grp1), colnames(ave.stats$exp_mat))] %>%
+      reshape2::melt()
+    colnames(ave.stats.grp1) = c("FTR", "GROUP", "ave.1")
+    pct.stats.grp1 = ave.stats$percent_mat[, grepl(paste0("^", ctrs.grp1), colnames(ave.stats$percent_mat))] %>%
+      reshape2::melt()
+    colnames(pct.stats.grp1) = c("FTR", "GROUP", "pct.1")
+    ave.stats.grp1$pct.1 = pct.stats.grp1$pct.1[match(rownames(ave.stats.grp1), rownames(pct.stats.grp1))]
+    ave.stats.grp2 = ave.stats$exp_mat[, grepl(paste0("^", ctrs.grp2), colnames(ave.stats$exp_mat))] %>%
+      reshape2::melt()
+    pct.stats.grp2 = ave.stats$percent_mat[, grepl(paste0("^", ctrs.grp2), colnames(ave.stats$percent_mat))] %>%
+      reshape2::melt()
+    ave.stats.grp1$ave.2 = ave.stats.grp2$value[match(rownames(ave.stats.grp1), rownames(ave.stats.grp2))]
+    ave.stats.grp1$pct.2 = pct.stats.grp2$value[match(rownames(ave.stats.grp1), rownames(pct.stats.grp2))]
+    ave.stats.grp1$TIMEPOINT = gsub(".+\\|", "", ave.stats.grp1$GROUP)
+    ave.stats.grp1$group.1 = gsub("\\|.+", "", ave.stats.grp1$GROUP)
+
+    ave.stats.grp1$FTR = paste0(
+      ave.stats.grp1$FTR, "_", x@meta.data[[.target]][1], "_",
+      ave.stats.grp1$TIMEPOINT
+    )
+    ave.stats.grp1
+  }, mc.cores = length(obj.l))
+  ave.stats = data.table::rbindlist(ave.stats)
+
+  res.wlx$pct.1 = ave.stats$pct.1[match(rownames(res.wlx), ave.stats$FTR)]
+  res.wlx$pct.2 = ave.stats$pct.2[match(rownames(res.wlx), ave.stats$FTR)]
+  res.wlx$ave.1 = ave.stats$ave.1[match(rownames(res.wlx), ave.stats$FTR)]
+  res.wlx$ave.2 = ave.stats$ave.2[match(rownames(res.wlx), ave.stats$FTR)]
+
+  res.wlx.sign = subset(res.wlx, significant == T)
+  res.wlx.sign = res.wlx.sign[abs(res.wlx.sign$avg_log2FC) > logfc.threshold, ]
+  res.wlx.sign = res.wlx.sign[res.wlx.sign$pct.1 > min.pct | res.wlx.sign$pct.2 > min.pct, ]
+  res.wlx$ID = paste0(res.wlx$cluster, "_", res.wlx$feature)
+  res.wlx.sign$ID = paste0(res.wlx.sign$cluster, "_", res.wlx.sign$feature)
+  res.wlx$significant = ifelse(
+    res.wlx$ID %in% res.wlx.sign$ID, TRUE, FALSE
+  )
+  print(table(res.wlx.sign$cluster, res.wlx.sign$group))
+  list(res.wlx = res.wlx, res.wlx.sign = res.wlx.sign)
+}
+
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # Add column in metadata wether CD4/CD8, CAR are present
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 cd4cd8_car_present = function(
-  obj
+    obj
 ){
   cd8cd4 = FetchData(obj, c("CD8A", "CD8B", "CD4", "CD274"), slot = "counts")
   ct.cd8cd4 = cd8cd4 %>% mutate(
@@ -1060,8 +1159,9 @@ assign_vdj = function(
     vdj = "vdj_t",
     batch = NULL,
     present.bool = TRUE,
-    export.table = FALSE
-  ){
+    export.table = FALSE,
+    return.combined = F
+){
 
   stopifnot(vdj %in% c("vdj_t", "vdj_b"))
 
@@ -1105,6 +1205,11 @@ assign_vdj = function(
       samples = paste0(names(contig_list))
     )
   }
+
+  if(return.combined == T){
+    return(combined)
+  }
+
 
   combined = data.table::rbindlist(combined) %>% data.frame()
 
@@ -1201,7 +1306,7 @@ spectra_wlx = function(
   }
 
   df$FACTOR_TP = paste0(df$FACTOR, "_", df$TIMEPOINT)
- rm.f =
+  rm.f =
     df %>%
     dplyr::group_by(FACTOR_TP, .data[[.target]]) %>%
     dplyr::count() %>%
@@ -1292,11 +1397,12 @@ spectra_wlx = function(
 da_paired = function(
     obj = NULL,
     transform = "asin",
-    only.paired = T,
+    only.paired = F,
     block = "PATIENT_ID"
 ){
 
   l = list()
+  # i = "CR"
   for (i in names(obj)) {
     print(i)
     x = obj[[i]]

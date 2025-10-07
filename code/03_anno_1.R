@@ -87,6 +87,25 @@ Idents(se.meta) = "orig.ident"
 # se.meta = se.meta[, se.meta$orig.ident %in% c(s.1, s.2)]
 # se.meta = subset(se.meta, downsample = 1000)
 
+# # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# # Anndata object for celltypist
+# # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# obj = se.meta
+# obj[["ADT"]] = NULL
+# obj@meta.data = obj@meta.data %>% dplyr::select(orig.ident)
+# obj@meta.data$orig.ident = as.character(obj@meta.data$orig.ident)
+#
+# obj[["RNA"]]$data = obj[["RNA"]]$counts
+#
+# out.dir = paste0(manifest$meta_pub, "celltypist/")
+#
+# SaveH5Seurat(
+#   obj, filename = paste0(out.dir, "bcma_car.h5Seurat"), overwrite = T
+# )
+# Convert(
+#   paste0(out.dir, "bcma_car.h5Seurat"), dest = "h5ad", overwrite = T
+# )
+
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("Azimuth")
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

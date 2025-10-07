@@ -169,6 +169,8 @@ Idents(se.meta) = "orig.ident"
 
 saveRDS(se.meta, output.file.1)
 
+# se.meta = readRDS(output.file.1)
+
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # Cell filtering
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -177,7 +179,7 @@ nFeature_high_cutoff = 8000
 nCount_low_cutoff = 1000
 nCount_high_cutoff = 100000
 mt_cutoff = 15
-complx_cutoff = .8
+complx_cutoff = 0.8
 
 label_cells_rm = function(obj) {
   obj@meta.data = obj@meta.data %>% mutate(

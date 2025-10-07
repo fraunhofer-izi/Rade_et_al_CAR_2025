@@ -15,10 +15,6 @@ Includes:
 - Seurat object used for publication
 - Cell ranger output
 
-## FASTQ files
-
-FASTQ files are available in the European Genome-Phenome Archive under accession code EGAXXXXXXXXXXX with restricted access due to GDPR regulations and data can be accessed by placing a request via EGA.
-
 ## Reproduction
 
 ``` sh
@@ -76,8 +72,6 @@ Rscript publication/figure_scripts/fig_01.R
 Rscript publication/figure_scripts/fig_02.R
 Rscript publication/figure_scripts/fig_03_01_slingshot.R
 Rscript publication/figure_scripts/fig_03_02.R
-Rscript publication/figure_scripts/fig_04_01_spectra/01_spectra_t_prep.R
-publication/figure_scripts/fig_04_01_spectra/02_spectra_run_t.ipynb  # Jupyter Notebook file
 Rscript publication/figure_scripts/fig_04_02.R
 Rscript publication/figure_scripts/fig_05.R
 Rscript publication/figure_scripts/fig_06.R

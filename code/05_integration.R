@@ -70,12 +70,12 @@ print("LOAD DATA")
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 manifest = yaml.load_file("manifest.yaml")
 
-output.file = paste0(manifest$meta_pub, "integration/05_seurat_harmony_all.Rds")
-output.file.t = paste0(manifest$meta_pub, "integration/06_seurat_harmony_t_all.Rds")
-output.file.t.vdj = paste0(manifest$meta_pub, "integration/05_vdj_t.Rds")
-output.file.b.vdj = paste0(manifest$meta_pub, "integration/05_vdj_b.Rds")
+output.file = paste0(manifest$meta_pub, "integration/05_seurat_harmony_all_new.Rds")
+output.file.t = paste0(manifest$meta_pub, "integration/06_seurat_harmony_t_all_new.Rds")
+output.file.t.vdj = paste0(manifest$meta_pub, "integration/05_vdj_t_new.Rds")
+output.file.b.vdj = paste0(manifest$meta_pub, "integration/05_vdj_b_new.Rds")
 
-se.meta = readRDS(paste0(manifest$meta_pub, "04_seurat_anno_2.Rds"))
+se.meta = readRDS(paste0(manifest$meta_pub, "04_seurat_anno_2_new.Rds"))
 
 # source("code/01_cohorts/prep_pheno.R")
 pdata = readRDS("data/clinical_data_for_seurat.Rds")
@@ -97,11 +97,6 @@ se.meta = subset(se.meta, TIMEPOINT != "pre_Tec")
 se.meta = se.meta[, !grepl("_2", se.meta$SAMPLE_ID)]
 se.meta@meta.data = droplevels(se.meta@meta.data)
 
-# hbb.exprs = FetchData(se.meta, vars = c("HBB"), layer = "counts")
-# se.meta = AddMetaData(se.meta, hbb.exprs)
-# se.meta = se.meta[, se.meta$HBB < 2]
-# se.meta@meta.data = droplevels(se.meta@meta.data)
-
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("Integration: all celltypes")
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -109,15 +104,15 @@ se.meta = integration(
   obj = se.meta,
   no.ftrs = 2000,
   threads = 30,
-  .nbr.dims = 30,
+  .nbr.dims = 20,
   run.integration = T,
-  harmony.group.vars = c("STUDY")
+  harmony.group.vars = c("PATIENT_ID")
 )
 
-# DimPlot_scCustom(
-#   se.meta, reduction = "umap", group.by = "celltype_short_3",
-#   pt.size = 1, colors_use = ct.col
-# )
+DimPlot_scCustom(
+  se.meta, reduction = "umap", group.by = "celltype_short_3",
+  pt.size = 1, colors_use = ct.col
+)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # T-cells
@@ -138,52 +133,60 @@ se.meta.cd4 = integration(
   harmony.group.vars = c("PATIENT_ID")
 )
 
-DimPlot_scCustom(se.meta.cd4, reduction = "umap", group.by = "celltype", pt.size = .1, colors_use = til.col) |
-DimPlot_scCustom(se.meta.cd4, reduction = "umap", group.by = "RNA_snn_res.0.1", pt.size = .1)
+DimPlot_scCustom(
+  se.meta.cd4, reduction = "umap", group.by = "celltype", pt.size = .1,
+  colors_use = til.col
+) |
+DimPlot_scCustom(
+  se.meta.cd4, reduction = "umap", group.by = "RNA_snn_res.0.1", pt.size = .1
+)
 
 pd.cd4 = se.meta.cd4@meta.data
 treg.cluster = pd.cd4 %>% dplyr::count(celltype, RNA_snn_res.0.1) %>%
   dplyr::group_by(RNA_snn_res.0.1) %>%
   dplyr::filter(n == max(n)) %>%
-  dplyr::filter(celltype == "CD4.Treg") %>%
+  dplyr::filter(celltype == "CD4 Treg") %>%
   pull(RNA_snn_res.0.1) %>%
   as.character()
 pd.cd4$celltype = ifelse(
   pd.cd4$RNA_snn_res.0.1 == treg.cluster,
-  "CD4.Treg",
+  "CD4 Treg",
   as.character(pd.cd4$celltype)
 )
 treg = pd.cd4 %>% dplyr::select(celltype)
 colnames(treg) = "celltype_2"
 se.meta.cd4 = AddMetaData(se.meta.cd4, treg)
 
+print(table(se.meta.cd4$celltype, se.meta.cd4$celltype_2))
+
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("Integration: CD8 -> re-anno TEMRA")
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 se.meta.cd8 = se.meta.t[, grepl("CD8", se.meta.t$celltype)]
 se.meta.cd8 = integration(
-  obj = se.meta.cd8,
+  obj = se.meta.cd8[, se.meta.cd8$CellCycle == "FALSE"],
   no.ftrs = 1000,
   threads = 15,
   .nbr.dims = 25, run.integration = T,
   harmony.group.vars = c("PATIENT_ID")
 )
 
-DimPlot_scCustom(se.meta.cd8, reduction = "umap", group.by = "celltype", pt.size = .1, colors_use = til.col) |
-  DimPlot_scCustom(se.meta.cd8, reduction = "umap", group.by = "RNA_snn_res.0.1", pt.size = .1)
+DimPlot_scCustom(
+  se.meta.cd8, reduction = "umap", group.by = "celltype", pt.size = .1,
+  colors_use = til.col
+) |
+DimPlot_scCustom(
+  se.meta.cd8, reduction = "umap", group.by = "RNA_snn_res.0.1", pt.size = .1
+)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # Annotate TEMRA subcluster
 # TEMRA cluster2: KLRC2 and IKZF2 high
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# DimPlot_scCustom(se.meta.cd8, reduction = "umap", group.by = "RNA_snn_res.0.1", pt.size = .1)
-# DefaultAssay(se.meta.cd8) = "ADT"
-# exprs = FetchData(se.meta.cd8, vars = c("RNA_snn_res.0.1", "CD45RO", "CD45RA"))
 DefaultAssay(se.meta.cd8) = "RNA"
 exprs = FetchData(se.meta.cd8, vars = c("RNA_snn_res.0.1", "KLRC2", "IKZF2"))
 
 tbl = table(exprs$RNA_snn_res.0.1, (exprs$KLRC2 > 1 | exprs$IKZF2 > 1))
-# tbl = table(exprs$RNA_snn_res.0.1, (exprs$CD45RO < 1 & exprs$CD45RA > 1))
 df = as.data.frame.matrix(tbl)
 temra.subcluster = rownames(df[df$`TRUE` > df$`FALSE`, ])
 pd.cd8 = se.meta.cd8@meta.data
@@ -199,9 +202,9 @@ se.meta.cd8 = AddMetaData(se.meta.cd8, temra)
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 #
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# tmp = se.meta
+tmp = se.meta
 # se.meta = tmp
-# tmp.t = se.meta.t
+tmp.t = se.meta.t
 # se.meta.t = tmp.t
 
 pd.t = rbind(
@@ -289,10 +292,6 @@ vdj.df = vdj.df %>% dplyr::group_by(orig.ident) %>%
   data.frame()
 vdj.df$clonalProportion = vdj.df$clonalFrequency / vdj.df$orig.ident.nbr
 
-vdj.df[!is.na(vdj.df$CTstrict), ] %>% dplyr::group_by(orig.ident) %>%
-  dplyr::filter (! duplicated(CTstrict)) %>%
-  dplyr::summarise(sss = sum(clonalProportion)) %>%
-  data.frame()
 vdj.df$orig.ident.nbr = NULL
 vdj.df$orig.ident = NULL
 rownames(vdj.df) = vdj.df$barcode
@@ -307,27 +306,13 @@ se.meta.t = integration(
   obj = se.meta.t,
   no.ftrs = 1000,
   threads = 15,
-  .nbr.dims = 15,
+  .nbr.dims = 20,
   run.integration = T,
   harmony.group.vars = c("PATIENT_ID")
 )
 
-se.meta.t@meta.data = se.meta.t@meta.data %>% mutate(
-  celltype = case_when(
-    grepl("^CD4", celltype) & CellCycle == T ~ "CD4.Cycling",
-    grepl("^CD8", celltype) & CellCycle == T ~ "CD8.Cycling",
-    TRUE ~ as.character(celltype)
-  )
-)
-se.meta.t$celltype = factor(se.meta.t$celltype)
-
-cell.idents = sort(table(se.meta.t$celltype))
-print(cell.idents)
-se.meta.t = se.meta.t[, se.meta.t$celltype %in% names(cell.idents[cell.idents > 100])]
-se.meta.t@meta.data = droplevels(se.meta.t@meta.data)
-
 # DimPlot_scCustom(se.meta.t, reduction = "umap", group.by = "STUDY", pt.size = .1)
-# DimPlot_scCustom(se.meta.t, reduction = "umap", group.by = "celltype", pt.size = .1, colors_use = til.col)
+# DimPlot_scCustom(se.meta.t, reduction = "umap", group.by = "celltype", pt.size = .1, colors_use = til.col) & coord_flip()
 # DimPlot_scCustom(se.meta.t, reduction = "umap", group.by = "RNA_snn_res.0.1", pt.size = .1)
 # FeaturePlot_scCustom(se.meta.t, features = "nFeature_RNA")
 

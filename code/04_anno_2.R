@@ -62,13 +62,84 @@ manifest = yaml.load_file("manifest.yaml")
 se.meta = readRDS(paste0(manifest$meta_pub, "03_seurat_anno_1.Rds"))
 se.meta[["RNA"]] <- as(se.meta[["RNA"]], Class = "Assay")
 
-output.file = paste0(manifest$meta_pub, "04_seurat_anno_2.Rds")
+output.file = paste0(manifest$meta_pub, "04_seurat_anno_2_new.Rds")
 
 scGate_models_DB = get_scGateDB("data/scGateDB", force_update = F)
 Idents(se.meta) = "orig.ident"
 
 # source("code/01_cohorts/prep_pheno.R")
 pdata = readRDS("data/clinical_data_for_seurat.Rds")
+
+celltypist = read.csv(paste0(manifest$meta_pub, "/celltypist/celltypist_res.csv"))
+celltypist$barcode = celltypist$X
+celltypist$X = NULL
+
+se.meta$AIFI_L1 = celltypist$AIFI_L1_prediction[match(
+  rownames(se.meta@meta.data), celltypist$barcode
+)]
+se.meta$AIFI_L1_score = celltypist$AIFI_L1_score[match(
+  rownames(se.meta@meta.data), celltypist$barcode
+)]
+
+se.meta$AIFI_L2 = celltypist$AIFI_L2_prediction[match(
+  rownames(se.meta@meta.data), celltypist$barcode
+)]
+se.meta$AIFI_L2_score = celltypist$AIFI_L2_score[match(
+  rownames(se.meta@meta.data), celltypist$barcode
+)]
+
+se.meta$AIFI_L3 = celltypist$AIFI_L3_prediction[match(
+  rownames(se.meta@meta.data), celltypist$barcode
+)]
+se.meta$AIFI_L3_score = celltypist$AIFI_L3_score[match(
+  rownames(se.meta@meta.data), celltypist$barcode
+)]
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+print("Coarse celltype consistency with scGATE models")
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+se.meta@meta.data = se.meta@meta.data %>%
+  dplyr::mutate(
+    AIFI_L1_COARSE = dplyr::case_when(
+      AIFI_L1 == "B cell" ~ "B-Cell",
+      AIFI_L1 == "Progenitor cell" ~ "Progenitor",
+      AIFI_L1 == "NK cell" ~ "NK",
+      AIFI_L1 == "T cell" ~ "T-Cell",
+      AIFI_L1 == "DC" ~ "DC",
+      AIFI_L1 == "Monocyte" ~ "MoMac",
+      TRUE ~ AIFI_L1
+    )
+  )
+table(se.meta$AIFI_L1, se.meta$AIFI_L1_COARSE, useNA = "always")
+
+se.meta@meta.data = se.meta@meta.data %>%
+  dplyr::mutate(
+    AIFI_L2_COARSE = dplyr::case_when(
+      grepl("B cell", AIFI_L2) ~ "B-Cell",
+      grepl("CD4", AIFI_L2) ~ "T-Cell",
+      grepl("CD8", AIFI_L2) ~ "T-Cell",
+      AIFI_L2 == "Treg" ~ "T-Cell",
+      AIFI_L2 == "MAIT" ~ "T-Cell",
+      AIFI_L2 == "gdT" ~ "T-Cell",
+      AIFI_L2 == "CD8aa" ~ "T-Cell",
+      AIFI_L2 == "DN T cell" ~ "T-Cell",
+      AIFI_L2 == "Proliferating T cell" ~ "T-Cell",
+      AIFI_L2 == "Progenitor cell" ~ "Progenitor",
+      AIFI_L2 == "CD56bright NK cell" ~ "NK",
+      AIFI_L2 == "CD56dim NK cell" ~ "NK",
+      AIFI_L2 == "Proliferating NK cell" ~ "NK",
+      AIFI_L2 == "CD14 monocyte" ~ "MoMac",
+      AIFI_L2 == "CD16 monocyte" ~ "MoMac",
+      AIFI_L2 == "Intermediate monocyte" ~ "MoMac",
+      grepl("cDC", AIFI_L2) ~ "DC",
+      AIFI_L2 == "ASDC" ~ "DC",
+      AIFI_L2 == "pDC" ~ "DC",
+      AIFI_L2 == "ILC" ~ "Other",
+      AIFI_L2 == "Platelet" ~ "Erythrocyte",
+      TRUE ~ AIFI_L2
+    )
+  )
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("Coarse celltype consistency with scGATE models")
@@ -104,9 +175,13 @@ se.meta@meta.data = se.meta@meta.data %>%
     )
   )
 
-se.meta.w = se.meta
+table(se.meta$CT_L2_COARSE, se.meta$AIFI_L2_COARSE)
 
-# table(se.meta.w$CT_L2, se.meta.w$CT_L2_COARSE)
+
+tmp = se.meta
+# se.meta = tmp
+
+se.meta.w = se.meta
 
 se.meta.w = assign_vdj(
   obj = se.meta.w,
@@ -135,40 +210,64 @@ se.meta.w = assign_vdj(
 hbb.exprs = FetchData(se.meta.w, vars = c("HBB"), layer = "counts")
 se.meta.w = AddMetaData(se.meta.w, hbb.exprs)
 
-pd = se.meta.w@meta.data
+pd = se.meta.w@meta.data; print(nrow(pd))
 pd = pd[pd$SCGATE_IMMUNE == "Pure", ]; print(nrow(pd))
 pd = pd[pd$DOUBLETS_CONSENSUS == FALSE | pd$CAR_BY_EXPRS == "TRUE", ]; print(nrow(pd))
 pd = pd[pd$SCGATE_PLATELET == "Impure", ]; print(nrow(pd))
 pd = pd[pd$SCGATE_ERYTHROCYTE == "Impure", ]; print(nrow(pd))
-pd = pd[pd$SCGATE_MEGAKARYOCYTE == "Impure", ]; print(nrow(pd))
-pd = pd[!pd$CT_L2_COARSE == "Other", ]; print(nrow(pd))
-pd = pd[!pd$CT_L2_COARSE == "Erythrocyte", ]; print(nrow(pd))
 pd = pd[pd$HBB < 2, ]; print(nrow(pd))
 pd = pd[pd$PLATELET_UCell < .35, ]; print(nrow(pd))
+pd = pd[pd$SCGATE_MEGAKARYOCYTE == "Impure", ]; print(nrow(pd))
 
-pd = pd[pd$CT_L2_SCORE > .5 | pd$CAR_BY_EXPRS == "TRUE", ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE != "NK" & pd$SCGATE_NK == "Pure"), ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE == "NK" & pd$SCGATE_NK == "Impure"), ]; print(nrow(pd))
-pd = pd[!(!grepl("MoDCMac|Progenitor", pd$CT_L2_COARSE) & pd$SCGATE_MYELOID == "Pure"), ]; print(nrow(pd))
-pd = pd[!(grepl("Mono|ASDC|cDC|Macro|pre-mDC|pre-pDC", pd$CT_L2) & pd$SCGATE_MYELOID == "Impure"), ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE != "T-Cell" & pd$SCGATE_TCELL == "Pure"), ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE == "T-Cell" & pd$SCGATE_TCELL == "Impure"), ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE != "T-Cell" & pd$CAR_BY_EXPRS == "TRUE"), ]; print(nrow(pd))
+pd = pd[!pd$AIFI_L2_COARSE == "Other", ]; print(nrow(pd)) # ILC cells, but too few
+pd = pd[!pd$AIFI_L1_COARSE == "ILC", ]; print(nrow(pd))
+pd = pd[!pd$AIFI_L2_COARSE == "Erythrocyte", ]; print(nrow(pd))
+pd = pd[!pd$AIFI_L1_COARSE == "Erythrocyte", ]; print(nrow(pd))
+pd = pd[!pd$AIFI_L1_COARSE == "Platelet", ]; print(nrow(pd))
+
+pd = pd[!(!grepl("B-Cell|Plasma", pd$AIFI_L2_COARSE) & pd$AIFI_L1_COARSE == "B-Cell"), ]; print(nrow(pd))
+pd = pd[!(!grepl("MoMac", pd$AIFI_L2_COARSE) & pd$AIFI_L1_COARSE == "MoMac"), ]; print(nrow(pd))
+pd = pd[!(!grepl("DC", pd$AIFI_L2_COARSE) & pd$AIFI_L1_COARSE == "DC"), ]; print(nrow(pd))
+pd = pd[!(!grepl("NK", pd$AIFI_L2_COARSE) & pd$AIFI_L1_COARSE == "NK"), ]; print(nrow(pd))
+pd = pd[!(!grepl("Progenitor", pd$AIFI_L2_COARSE) & pd$AIFI_L1_COARSE == "Progenitor"), ]; print(nrow(pd))
+pd = pd[!(!grepl("T-Cell", pd$AIFI_L2_COARSE) & pd$AIFI_L1_COARSE == "T-Cell"), ]; print(nrow(pd))
+
+pd = pd[!(!grepl("B-Cell|Plasma", pd$AIFI_L2_COARSE) & grepl("B cell|Plasma", pd$AIFI_L3)), ]; print(nrow(pd))
+pd = pd[!(!grepl("B cell|Plasma", pd$AIFI_L3) & grepl("B-Cell|Plasma", pd$AIFI_L2_COARSE)), ]; print(nrow(pd))
+
+pd = pd[!(!grepl("DC", pd$AIFI_L2_COARSE) & grepl("DC", pd$AIFI_L3)), ]; print(nrow(pd))
+pd = pd[!(!grepl("DC", pd$AIFI_L3) & grepl("DC", pd$AIFI_L2_COARSE)), ]; print(nrow(pd))
+
+pd = pd[!(!grepl("MoMac", pd$AIFI_L2_COARSE) & grepl("monocyte", pd$AIFI_L3)), ]; print(nrow(pd))
+pd = pd[!(!grepl("monocyte", pd$AIFI_L3) & grepl("MoMac", pd$AIFI_L2_COARSE)), ]; print(nrow(pd))
+
+pd = pd[!(!grepl("NK", pd$AIFI_L2_COARSE) & grepl("NK", pd$AIFI_L3)), ]; print(nrow(pd))
+pd = pd[!(!grepl("NK", pd$AIFI_L3) & grepl("NK", pd$AIFI_L2_COARSE)), ]; print(nrow(pd))
+
+pd = pd[!(!grepl("T-Cell", pd$AIFI_L2_COARSE) & grepl("CD4|CD8|T cell|gdT", pd$AIFI_L3)), ]; print(nrow(pd))
+pd = pd[!(!grepl("CD4|CD8|T cell|gdT", pd$AIFI_L3) & grepl("T-Cell", pd$AIFI_L2_COARSE)), ]; print(nrow(pd))
+
+pd = pd[!(pd$AIFI_L2_COARSE != "NK" & pd$SCGATE_NK == "Pure"), ]; print(nrow(pd))
+pd = pd[!(pd$AIFI_L2_COARSE == "NK" & pd$SCGATE_NK == "Impure"), ]; print(nrow(pd))
+pd = pd[!(!grepl("MoMac|DC|Progenitor", pd$AIFI_L2_COARSE) & pd$SCGATE_MYELOID == "Pure"), ]; print(nrow(pd))
+
+pd = pd[!(pd$AIFI_L2_COARSE != "T-Cell" & pd$SCGATE_TCELL == "Pure"), ]; print(nrow(pd))
+pd = pd[!(pd$AIFI_L2_COARSE == "T-Cell" & pd$SCGATE_TCELL == "Impure"), ]; print(nrow(pd))
+pd = pd[!(pd$AIFI_L2_COARSE != "T-Cell" & pd$CAR_BY_EXPRS == "TRUE"), ]; print(nrow(pd))
 pd = pd[pd$CD4CD8_BY_EXPRS != "CD4+CD8+", ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE != "T-Cell" & pd$VDJ_T_AVAIL == TRUE), ]; print(nrow(pd))
-pd = pd[!(!grepl("B-Cell|Plasma|Progenitor", pd$CT_L2_COARSE) & pd$VDJ_B_AVAIL == TRUE), ]; print(nrow(pd))
-pd = pd[!(!grepl("B-Cell|Progenitor", pd$CT_L2_COARSE) & pd$SCGATE_BCELL == "Pure"), ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE == "B-Cell" & pd$SCGATE_BCELL == "Impure"), ]; print(nrow(pd))
-pd = pd[!(pd$CT_L2_COARSE != "Plasma cell" & pd$SCGATE_PLASMACELL == "Pure"), ]; print(nrow(pd))
+pd = pd[!(pd$AIFI_L2_COARSE != "T-Cell" & pd$VDJ_T_AVAIL == TRUE), ]; print(nrow(pd))
+pd = pd[!(!grepl("T-Cell|NK", pd$AIFI_L2_COARSE) & pd$CD3_BY_EXPRS == "CD3"), ]; print(nrow(pd))
 
-# table(pd$CT_L2_COARSE, pd$SCGATE_MYELOID)
-# table(pd$CT_L2_COARSE, pd$SCGATE_NK)
-# table(pd$CT_L2_COARSE, pd$SCGATE_TCELL)
-# table(pd$CT_L2_COARSE, pd$SCGATE_BCELL)
-# table(pd$CT_L2_COARSE, pd$SCGATE_PLASMACELL)
-# table(pd$CT_L2_COARSE, pd$CAR_BY_EXPRS)
-# table(pd$CT_L2_COARSE, pd$VDJ_T_AVAIL)
-# table(pd$CT_L2_COARSE, pd$VDJ_B_AVAIL)
+
+pd = pd[!(!grepl("B-Cell|Plasma|Progenitor", pd$AIFI_L2_COARSE) & pd$VDJ_B_AVAIL == TRUE), ]; print(nrow(pd))
+pd = pd[!(!grepl("B-Cell|Progenitor", pd$AIFI_L2_COARSE) & pd$SCGATE_BCELL == "Pure"), ]; print(nrow(pd))
+pd = pd[!(pd$AIFI_L2_COARSE == "B-Cell" & pd$SCGATE_BCELL == "Impure"), ]; print(nrow(pd))
+pd = pd[!(pd$AIFI_L2_COARSE != "Plasma cell" & pd$SCGATE_PLASMACELL == "Pure"), ]; print(nrow(pd))
+
+pd = pd[pd$Perc_of_mito_genes <= 10, ]; print(nrow(pd))
+
+# table(pd$AIFI_L3, pd$AIFI_L2_COARSE)
+table(pd$CT_L2_COARSE, pd$AIFI_L2_COARSE)
 
 se.meta = se.meta[ , rownames(se.meta@meta.data) %in% rownames(pd)]
 se.meta@meta.data = droplevels(se.meta@meta.data)
@@ -176,7 +275,7 @@ se.meta@meta.data = droplevels(se.meta@meta.data)
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("T cells of a clone should consist of CD4 and CD8 cells.")
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-se.t = subset(se.meta, CT_L1_COARSE == "T-Cell")
+se.t = subset(se.meta, AIFI_L2_COARSE == "T-Cell")
 se.t = assign_vdj(
   obj = se.t,
   vdj = "vdj_t",
@@ -354,33 +453,15 @@ se.t = AddMetaData(se.t, add.meta)
 
 # Annotate gamma delta T cells
 pd = se.t@meta.data
-pd = pd[pd$SCGATE_GDT == "Pure", ]
+pd = pd[grepl("gdT", pd$AIFI_L3), ]
 pd = pd[is.na(pd$CTstrict), ]
 pd = pd[pd$T_LIN_WORK != "CD4", ]
+
 se.t@meta.data$T_LIN_WORK = ifelse(
   rownames(se.t@meta.data) %in% rownames(pd),
   "gdT", se.t@meta.data$T_LIN_WORK
 )
 se.t = subset(se.t, T_LIN_WORK != "T")
-
-# tbl = FetchData(
-#   se.t,
-#   vars = c("CD4_SMOOTH", "CD8_SMOOTH", "T_LIN_WORK", "T_LIN", "orig.ident", "CD4CD8_BY_EXPRS")
-# )
-# ggplot(tbl, aes(CD4_SMOOTH, CD8_SMOOTH)) +
-#   geom_point(aes(color = T_LIN), shape = ".", alpha = .5) +
-#   guides(alpha = 'none') +
-#   guides(colour = guide_legend(ncol = 1, override.aes = list(size=6, shape = 16, alpha = 1))) +
-#   scale_color_manual(values = ggthemes::tableau_color_pal()(10)) +
-#   mytheme() +
-#   theme(
-#     aspect.ratio = 1,
-#     panel.spacing = unit(1, "lines"),
-#     plot.title = element_text(hjust = 0.5, face = "bold"),
-#   ) +
-#   geom_hline(yintercept = thres.y, lwd = .2, linetype = "dashed") +
-#   geom_vline(xintercept = thres.x, lwd = .2, linetype = "dashed") +
-#   facet_grid( ~ T_LIN_WORK)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("ProjecTILs (T-cells)")
@@ -443,13 +524,13 @@ se.meta.tmp = se.meta
 se.meta = AddMetaData(se.meta, add.meta)
 
 pd = se.meta@meta.data
-rm.barcodes = rownames(pd[is.na(pd$T_LIN) & pd$CT_L1_COARSE == "T-Cell", ])
+rm.barcodes = rownames(pd[is.na(pd$T_LIN) & pd$AIFI_L2_COARSE == "T-Cell", ])
 se.meta = se.meta[, !colnames(se.meta) %in% rm.barcodes]
 
-table(se.meta$T_LIN, se.meta$CT_L1_COARSE, useNA = "always")
+table(se.meta$T_LIN, se.meta$AIFI_L2_COARSE, useNA = "always")
 
 # cycling cell will be annotate separately
-se.meta$celltype = trimws(gsub(" Proliferating", "", se.meta$CT_L2))
+se.meta$celltype = trimws(gsub("Proliferating ", "", se.meta$AIFI_L3))
 se.meta@meta.data = se.meta@meta.data %>%
   dplyr::mutate(
     celltype = dplyr::case_when(
@@ -457,6 +538,8 @@ se.meta@meta.data = se.meta@meta.data %>%
       TRUE ~ SPICA_TCELL
     )
   )
+
+sort(unique(se.meta$celltype))
 
 se.meta@meta.data = se.meta@meta.data %>%
   mutate(
@@ -469,32 +552,125 @@ se.meta@meta.data = se.meta@meta.data %>%
     )
   )
 
+sort(unique(se.meta$celltype_short_2))
+
 se.meta@meta.data = se.meta@meta.data %>%
-  mutate(
-    celltype_short_3 = case_when(
-      grepl("Eryth", celltype) ~ "Erythrocyte",
-      grepl("HSPC|CLP|EMP|GMP|LMPP|HSC|Prog_Mk|Prog Mk|Prog_DC|^Prog_B|pro B|pre B|BaEoMa", celltype) ~ "Progenitor",
-      grepl("ILC|BaEoMa|Stromal", celltype) ~ "Other",
-      grepl("B cell|Memory B|B memory|B-Cell Memory|Naive B|B-Cell Naive|B naive|transitional B|B intermediate", celltype) ~ "B-Cell",
-      grepl("Plasma|Plasmablast", celltype) ~ "Plasma cell",
-      grepl("^cDC", celltype) ~ "cDC",
-      grepl("^pDC", celltype) ~ "pDC",
-      grepl("^ASDC|^mDC|pre-pDC|pre-mDC", celltype) ~ "other DC",
-      grepl("^CD14", celltype) ~ "Mono CD14",
-      grepl("^CD16", celltype) ~ "Mono CD16",
-      grepl("Macrophage", celltype) ~ "Macrophage",
-      grepl("^NK|CD56 bright NK", celltype) ~ "NK",
-      grepl("^CD4", celltype) ~ "CD4 T-Cell",
-      grepl("^CD8", celltype) ~ "CD8 T-Cell",
-      grepl("gdT", celltype) ~ "gd T-Cell",
-      grepl("dpT", celltype) ~ "dp T-Cell",
+  dplyr::mutate(
+    celltype_short_3 = dplyr::case_when(
+      grepl(" B cell", celltype) ~ "B-Cell",
+      grepl("CD4", celltype) ~ "CD4 T-Cell",
+      grepl("CD8", celltype) ~ "CD8 T-Cell",
+      celltype == "Treg" ~ "CD4 T-Cell",
+      celltype == "MAIT" ~ "CD8 T-Cell",
+      celltype == "gdT" ~ "gd T-Cell",
+      celltype == "BaEoMaP cell" ~ "Progenitor",
+      celltype == "CLP cell" ~ "Progenitor",
+      celltype == "CMP cell" ~ "Progenitor",
+      grepl("NK cell", celltype) ~ "NK",
+      grepl("cDC1", celltype) ~ "cDC",
+      grepl("cDC2", celltype) ~ "cDC",
+      celltype == "ASDC" ~ "other DC",
+      celltype == "pDC" ~ "pDC",
+      celltype == "ILC" ~ "Other",
+      celltype == "Intermediate monocyte" ~ "Mono Intermediate",
+      grepl("CD14", celltype) ~ "Mono Classical",
+      grepl("CD16", celltype) ~ "Mono Non-classical",
       TRUE ~ celltype
     )
   )
-# table(se.meta$celltype, se.meta$celltype_short_3)
+
+# sort(unique(se.meta$celltype_short_3))
+# table(se.meta$celltype_short_3)
+
+se.meta$VDJ_T_AVAIL = se.meta.w$VDJ_T_AVAIL[match(rownames(se.meta@meta.data), rownames(se.meta.w@meta.data))]
+se.meta$VDJ_B_AVAIL = se.meta.w$VDJ_B_AVAIL[match(rownames(se.meta@meta.data), rownames(se.meta.w@meta.data))]
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# se.meta = readRDS(output.file)
+
+cell_filter = function(obj = NULL){
+
+  obj@meta.data = obj@meta.data %>% dplyr::mutate(
+    celltype = dplyr::case_when(
+      grepl("NK cell", celltype) & CellCycle == "TRUE" ~"NK Cycling",
+      celltype == "Adaptive NK cell" ~ "NK Adaptive",
+      celltype == "CD56bright NK cell" ~ "NK CD56bright",
+      celltype == "ISG+ CD56dim NK cell" ~ "NK CD56dim ISG+",
+      celltype == "GZMK+ CD56dim NK cell" ~ "NK CD56dim GZMK+",
+      celltype == "GZMK- CD56dim NK cell" ~ "NK CD56dim GZMK-",
+      celltype == "Core CD16 monocyte" ~ "Mono CD16",
+      celltype == "C1Q+ CD16 monocyte" ~ "Mono CD16 C1Q+",
+      celltype == "ISG+ CD16 monocyte" ~ "Mono CD16 ISG+",
+      celltype == "Core CD14 monocyte" ~ "Mono CD14",
+      celltype == "ISG+ CD14 monocyte" ~ "Mono CD14 ISG+",
+      celltype == "IL1B+ CD14 monocyte" ~ "Mono CD14 IL1B+",
+      celltype == "Intermediate monocyte" ~ "Mono intermediate",
+      celltype == "CD27- effector B cell" ~ "B effector CD27-",
+      celltype == "CD27+ effector B cell" ~ "B effector CD27+",
+      celltype == "CD95 memory B cell" ~ "B memory CD95+",
+      celltype == "Core memory B cell" ~ "B memory",
+      celltype == "Core naive B cell" ~ "B naive",
+      celltype == "ISG+ naive B cell" ~ "B naive ISG+",
+      celltype == "Transitional B cell" ~ "B Transitional",
+      celltype == "CD14+ cDC2" ~ "cDC2 CD14+",
+      celltype == "HLA-DRhi cDC2" ~ "cDC2 HLA-DR+",
+      celltype == "ISG+ cDC2" ~ "cDC2 ISG+",
+      grepl("^CD4", celltype) & CellCycle == "TRUE" ~"CD4 Cycling",
+      grepl("^CD8", celltype) & CellCycle == "TRUE" ~"CD8 Cycling",
+      celltype == "CD4.CTL_EOMES" ~ "CD4.CTL EOMES+",
+      celltype == "CD4.CTL_GNLY" ~ "CD4.CTL GNLY+",
+      TRUE ~ celltype
+    )
+  )
+  obj@meta.data$celltype = gsub("CD4.", "CD4 ", obj@meta.data$celltype)
+  obj@meta.data$celltype = gsub("CD8.", "CD8 ", obj@meta.data$celltype)
+
+  obj = obj[, obj@meta.data$celltype != "NK cell"]
+
+  trdc = FetchData(obj, vars = c("TRDC", "celltype"))
+  df = trdc[!grepl("^NK|gdT", trdc$celltype), ]
+  r.1 = rownames(df[df$TRDC > 0, ])
+  df = trdc[grepl("gdT", trdc$celltype), ]
+  r.2 = rownames(df[df$TRDC == 0, ])
+  obj = obj[, !colnames(obj) %in% c(r.1, r.2)]
+
+  pd = droplevels(obj@meta.data)
+  pd = droplevels(droplevels(pd[grepl("NK", pd$AIFI_L2), ]))
+  r.1 = rownames(
+    pd[grepl("CD56bright", pd$celltype) & grepl("CD56dim", pd$AIFI_L2), ]
+  )
+  r.2 = rownames(
+    pd[grepl("CD56dim", pd$celltype) & grepl("CD56bright", pd$AIFI_L2), ]
+  )
+  obj = obj[, !colnames(obj) %in% c(r.1, r.2)]
+
+
+  pd = droplevels(obj@meta.data)
+  pd = droplevels(droplevels(pd[grepl("monocyte", pd$AIFI_L2), ]))
+  r.1 = rownames(
+    pd[grepl("CD14", pd$celltype) & grepl("CD16", pd$AIFI_L2), ]
+  )
+  r.2 = rownames(
+    pd[grepl("CD16", pd$celltype) & grepl("CD14", pd$AIFI_L2), ]
+  )
+  obj = obj[, !colnames(obj) %in% c(r.1, r.2)]
+
+  pd = droplevels(obj@meta.data)
+  pd = droplevels(pd[!grepl("T cell|CD8|MAIT|Treg|gdT", pd$AIFI_L2), ])
+
+  r = rownames(pd[pd$AIFI_L2_score <= .5, ])
+  obj = obj[, !colnames(obj) %in% r]
+
+  obj@meta.data = droplevels(obj@meta.data)
+  obj@meta.data$celltype = factor(obj@meta.data$celltype)
+  obj
+}
+
+se.meta = cell_filter(obj = se.meta)
 
 pd = se.meta@meta.data
-rm.ct = table(pd$celltype, pd$CellCycle)[, 1] < 100
+rm.ct = table(pd$celltype) < 100
+table(rm.ct)
 se.meta = se.meta[, !se.meta$celltype %in% names(rm.ct[rm.ct])]
 se.meta@meta.data = droplevels(se.meta@meta.data)
 
@@ -503,15 +679,29 @@ se.meta@meta.data$celltype = factor(se.meta@meta.data$celltype)
 se.meta@meta.data$celltype_short_2 = factor(se.meta@meta.data$celltype_short_2)
 se.meta@meta.data$celltype_short_3 = factor(se.meta@meta.data$celltype_short_3)
 
-se.meta$VDJ_T_AVAIL = se.meta.w$VDJ_T_AVAIL[match(rownames(se.meta@meta.data), rownames(se.meta.w@meta.data))]
-se.meta$VDJ_B_AVAIL = se.meta.w$VDJ_B_AVAIL[match(rownames(se.meta@meta.data), rownames(se.meta.w@meta.data))]
-
-se.meta
-
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 print("Save")
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 se.meta@meta.data = se.meta@meta.data %>%
   dplyr::mutate_if(is.character, as.factor)
 
+se.meta
+
 saveRDS(se.meta, output.file)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

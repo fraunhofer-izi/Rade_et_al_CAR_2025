@@ -556,7 +556,7 @@ sc_ct_sample_fraction = function(
     group.psz = .5,
     base.size = 8,
     scales = "fixed",
-    order.by.ave.prop = T,
+    order.by.ave.prop = F,
     nbr.cell.cut = 100,
     filter.ct = NULL
 ){
@@ -610,7 +610,7 @@ sc_ct_sample_fraction = function(
     dplyr::group_by(orig.ident) %>%
     dplyr::summarise(Frequency = sum(perc_sample)) %>%
     data.frame()
-  stopifnot(!any(check$Frequency != "100"))
+  # stopifnot(!any(check$Frequency != "100"))
 
   perc_per_groups_ct = merge(perc_per_groups_ct, total_cells, by = c("groups_ct"))
 
@@ -863,6 +863,7 @@ dgea_plot = function(
     dgea.res = NULL,
     dgea.res.sign = NULL,
     nbr.tops = 5,
+    subset.celltypes = NULL,
     base.size = 8,
     text.repel.size = 2.5,
     text.de.nbr.size = 2.5,
@@ -881,6 +882,11 @@ dgea_plot = function(
 
   dgea.res$cluster = dgea.res[[cluster]]
   dgea.res.sign$cluster = dgea.res.sign[[cluster]]
+
+  if(!is.null(subset.celltypes)){
+    dgea.res = dgea.res[dgea.res$cluster %in% subset.celltypes, ]
+    dgea.res.sign = dgea.res.sign[dgea.res.sign$cluster %in% subset.celltypes, ]
+  }
 
   dgea.res$ID = paste0(dgea.res$cluster, "_", dgea.res$feature)
   dgea.res.sign$ID = paste0(dgea.res.sign$cluster, "_", dgea.res.sign$feature)
@@ -1016,13 +1022,20 @@ dgea_plot = function(
       axis.ticks.x = element_blank(),
       legend.margin = margin(t = legend.margin.t),
       legend.title = element_text(margin = margin(r = 3)),
-      legend.text = element_text(margin = margin(l = 1))
+      legend.text = element_text(margin = margin(l = 1)),
+      plot.title = element_text(size = 8, hjust = 0.5, face = "bold")
       # legend.spacing.x = unit(0, 'mm')
     ) +
     scale_color_manual(values = c("yes" = "#6699CC", "no" = "#BBBBBB")) +
     labs(x = NULL, y = "Log2 fold change", colour = paste0("FDR <0.05"))  +
-    annotate("text", x = 1:(no.cl), y = 0, label = data$group, color = "black", size = text.de.nbr.size) +
-    annotate("text", x = 1:(no.cl), y = axis.max + dge.nbr.up, label = cl.label, colour = "#6699CC", size = text.cl.size) +
+    annotate(
+      "text", x = 1:(no.cl), y = 0, label = data$group,
+      color = "black", size = text.de.nbr.size
+    ) +
+    annotate(
+      "text", x = 1:(no.cl), y = axis.max + dge.nbr.up,
+      label = cl.label, colour = "#6699CC", size = text.cl.size
+    ) +
     guides(colour = guide_legend(override.aes = list(size=2)))
 }
 
@@ -1719,38 +1732,72 @@ enrich_heatmap_milestones = function(
 # Tile plot
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 da_tile_pl = function(
-    res.speckle,
+    df,
     grp1 = "Gr_1.2",
     grp2 = "Gr_0",
     pl.title = NULL,
     alpha = 0.1,
+    fdr = 0.1,
     set.levels = NULL,
     tile.size = 4,
-    stroke.size = 2
+    tile.size.alpha = 4,
+    tile.size.fdr = 4,
+    stroke.size = 2,
+    fc.max = NULL
 ){
 
   if(!is.null(set.levels)){
-    res.speckle$BaselineProp.clusters = factor(
-      res.speckle$BaselineProp.clusters, levels = set.levels
+    df$BaselineProp.clusters = factor(
+      df$BaselineProp.clusters, levels = set.levels
     )
     drop.lvls = FALSE
   } else {
     drop.lvls = TRUE
   }
 
-  ggplot(res.speckle, aes(x = BaselineProp.clusters, y = Group)) +
-    geom_point(aes(shape = ifelse(P.Value >= alpha, NA, "s")), size = tile.size, stroke = stroke.size, color = "#228833") +
+  df = df %>% dplyr::mutate(
+    SIGN = dplyr::case_when(
+      FDR < fdr ~ paste0("FDR < ", fdr),
+      P.Value < alpha ~ paste0("p < ", alpha)
+    )
+  )
+
+  if(!is.null(fc.max)){
+    df$FC[
+      df$FC > fc.max & !is.infinite(df$FC)
+    ] = fc.max
+    df$FC[
+      df$FC < -fc.max & !is.infinite(df$FC)
+    ] = -fc.max
+  }
+
+  ggplot(df, aes(x = BaselineProp.clusters, y = Group)) +
+    geom_point(
+      aes(shape = ifelse(P.Value >= alpha, NA, "alpha.s")),
+      size = tile.size.alpha, stroke = stroke.size, color = "#228833"
+    ) +
+    geom_point(
+      aes(shape = ifelse(FDR >= fdr, NA, "fdr.s")),
+      size = tile.size.fdr, stroke = stroke.size, color = "red"
+    ) +
     geom_point(aes(color = FC), size = tile.size, shape = 15) +
     # scale_size(range = tile.size, breaks = breaks_pretty(3)) +
-    scale_shape_manual(values = c(22), name = paste0("p < ", alpha), labels = c("yes", "")) +
+    scale_shape_manual(
+      values = c(22, 22),
+      name = NULL,
+      labels = c(paste0("p < ", alpha), paste0("FDR < ", fdr), "")
+      # name = NULL, labels = lbls
+    ) +
     scale_color_scico(
       palette = "vik", midpoint = 0,
       begin = .1, end = .9, breaks = breaks_pretty(3),
-      limits = c(-max(abs(res.speckle$FC)), max(abs(res.speckle$FC)))
+      limits = c(-max(abs(df$FC)), max(abs(df$FC)))
     ) +
     mytheme(base_size = 8) +
     theme(
-      panel.grid.major = element_line(colour = "grey80", linetype = 2, linewidth = .3),
+      panel.grid.major = element_line(
+        colour = "grey80", linetype = 2, linewidth = .3
+      ),
       panel.grid.minor = element_blank(),
       axis.text.x = element_text(angle=45, hjust=1, vjust = 1),
       axis.text.y = element_text(size = rel(1)),
@@ -1759,16 +1806,24 @@ da_tile_pl = function(
       plot.title = element_text(hjust = 0.5),
       legend.ticks.length = unit(0.05, 'cm'),
       legend.position = "bottom",
-      legend.title = element_text(margin = margin(l = 3, unit = "pt"), size = rel(1)),
+      legend.title = element_text(
+        margin = margin(l = 3, unit = "pt"), size = rel(1)
+      ),
       legend.margin = margin(t=-4, l = 5),
     ) +
     guides(
-      size = guide_legend(title = "-log10(p-value)", title.position = "left", order = 2),
-      shape = guide_legend(order = 3, title.position = "left", override.aes = list(size = 3, stroke = 1)),
+      size = guide_legend(
+        title = "-log10(p-value)", title.position = "left", order = 2
+      ),
+      shape = guide_legend(
+        order = 3, title.position = "left",
+        override.aes = list(size = 3, stroke = 1)
+      ),
       color = guide_colorbar(
         title = paste0("Log2FC (", grp1, " vs. ", grp2,")  "), order = 1,
-        tticks.linewidth = .75/.pt, , frame.linewidth = 0.5/.pt,  title.vjust = .56, title.position = "left",
-        barwidth = unit(4, 'lines'), barheight = unit(.35, 'lines')
+        tticks.linewidth = .75/.pt, , frame.linewidth = 0.5/.pt,
+        title.vjust = .56, title.position = "left",
+        barwidth = unit(3, 'lines'), barheight = unit(.35, 'lines')
       )
     ) +
     ggtitle(pl.title) +

@@ -34,14 +34,18 @@ ct.col = c(
   "T-Cell (cycling)" = "#CC3311",
   "Mono CD14" = "#93aeba",
   "CD14 Mono" = "#93aeba",
+  "Mono Classical" = "#93aeba",
   "Mono CD16" = "#4B859F",
   "CD16 Mono" = "#4B859F",
+  "Mono Non-classical" = "#4B859F",
+  "Mono Intermediate" = "#66CCEE",
   "cDC" = "#9C9BDB",
   "pDC" = "#194573",
   "other DC" = "#D1BBD7",
   "Macrophage" = "black",
   "Erythrocyte" = "#B281A6",
   "Platelet" = "#AA4499",
+  "CMP cell" = "#555555",
   "Progenitor" = "#555555",
   "HSPC" = "#555555",
   "Other" = "black",
@@ -58,50 +62,63 @@ cd8.col = c(
   "CD8.EMRA" = "#72b28a",
   "CD8.EMRA.1" = "#72b28a",
   "CD8.EMRA.2" = "#CCDDAA",
-  "CD8.TEMRA.IKZF2" = "#CCDDAA",
-  "CD8.EMRA.IKZF2" = "#CCDDAA",
-  "gdT.TEMRA" = "#CCDDAA",
+  "CD8 EMRA 1" = "#72b28a",
+  "CD8 EMRA 2" = "#CCDDAA",
+  "CD8 TEMRA" = "#CCDDAA",
   "CD8.MAIT" = "#997700",
   "CD8.TPEX" = "#EE3377",
   "CD8.TEX" = "#EE6677",
-  "CD8.Cycling" = "#4f2535"
+  "CD8.Cycling" = "#4f2535",
+  "CD8 NaiveLike" = "#0077BB",
+  "CD8 CM" = "#33BBEE",
+  "CD8 EM" = "#0c6e63",
+  "CD8 EMRA" = "#72b28a",
+  "CD8 EMRA KLRC2+" = "#CCDDAA",
+  "CD8 MAIT" = "#997700",
+  "CD8 TPEX" = "#EE3377",
+  "CD8 TEX" = "#EE6677",
+  "CD8 Cycling" = "#4f2535"
 )
 
 cd4.col = c(
   "CD4.NaiveLike" = "#b7d2e0",
   "CD4.CTL_EOMES" = "#da6f6f",
-  "CD4.CTL.EOMES" = "#da6f6f",
   "CD4.CTL_GNLY" = "#e5bfaf",
-  "CD4.CTL.GNLY" = "#e5bfaf",
   "CD4.CTL_Exh" = "#EE7733",
-  "CD4.CTL.Exh" = "#EE7733",
   "CD4.Cycling" = "#994455",
   "CD4.Tfh" = "#aca6e0",
   "CD4.Th17" = "#f5d39f",
-  "CD4.Treg" = "#fdbfd4"
+  "CD4.Treg" = "#fdbfd4",
+  "CD4 NaiveLike" = "#b7d2e0",
+  "CD4 CTL EOMES+" = "#da6f6f",
+  "CD4 CTL GNLY+" = "#e5bfaf",
+  "CD4 CTL Exh" = "#EE7733",
+  "CD4 Cycling" = "#994455",
+  "CD4 Tfh" = "#aca6e0",
+  "CD4 Th17" = "#f5d39f",
+  "CD4 Treg" = "#fdbfd4"
 )
 
+ct.misc = c("#BBBBBB", "#555555", "#BBBBBB", "#555555", "#332288", "#DDDDDD", "#9e4f6c", "#4f2535", "#555555", "#EE7733", "#CCDDAA", "#994455", "#DDDDDD", "#DDDDDD")
+names(ct.misc) = c("CD4.other", "CD8.other", "CD4", "CD8", "NaiveLike", "NE", "S", "G2M", "T_myeloid", "gdT", "gdT.TEMRA", "Cycling", "Not Estimable", "dpT")
+
+til.col = c(cd8.col, cd4.col, ct.misc)
+
+
 bcell.col = setNames(
-  c("#CCBB44","#EE6677","#228833","#7C2529"),
-  c("B intermediate", "B-Cell Memory", "B-Cell Naive", "Plasma cell")
+  c("#228833","#999933","#CCBB44","#FFB954","#FD9A54","#E94C1F","#D11807","#7C2529"),
+  c("B naive","B naive ISG+","B Transitional","B effector CD27-", "B effector CD27+", "B memory", "B memory CD95+", "Plasma cell")
 )
+
+# bcell.col = setNames(
+#   c("#CCBB44","#EE6677","#228833","#7C2529"),
+#   c("B intermediate", "B-Cell Memory", "B-Cell Naive", "Plasma cell")
+# )
 
 clono.col = setNames(
   c("#FF4B20", "#FF9F2F", "#DCDFA2", "#7AC5FF", "#0348A6", "#BBBBBB"),
   c("Hyperexpanded (100 < X <= 1525)", "Large (20 < X <= 100)", "Medium (5 < X <= 20)", "Small (1 < X <= 5)", "Single (0 < X <= 1)",NA)
 )
-
-
-# cd8.col = c("#0077BB", "#33BBEE", "#009988", "#72b28a", "#EE3377", "#EE6677", "#997700", "#4f2535")
-# names(cd8.col) = c("CD8.NaiveLike", "CD8.CM", "CD8.EM", "CD8.TEMRA", "CD8.TPEX", "CD8.TEX", "CD8.MAIT", "CD8.Cycling")
-# cd4.col = c("#b7d2e0", "#da6f6f", "#e5bfaf", "#EE7733", "#aca6e0", "#f5d39f", "#fdbfd4", "#994455")
-# names(cd4.col) = c("CD4.NaiveLike", "CD4.CTL_EOMES", "CD4.CTL_GNLY", "CD4.CTL_Exh", "CD4.Tfh", "CD4.Th17", "CD4.Treg", "CD4.Cycling")
-ct.misc = c("#BBBBBB", "#555555", "#BBBBBB", "#555555", "#332288", "#DDDDDD", "#9e4f6c", "#4f2535", "#555555", "#EE7733", "#CCDDAA", "#994455", "#DDDDDD", "#DDDDDD")
-names(ct.misc) = c("CD4.other", "CD8.other", "CD4", "CD8", "NaiveLike", "NE", "S", "G2M", "T_myeloid", "gdT", "gdT.TEMRA", "Cycling", "Not Estimable", "dpT")
-til.col = c(cd8.col, cd4.col, ct.misc)
-
-tcat.col = c("#b7d2e0", "#aca6e0", "#fdbfd4", "#72b28a", "#0077BB", "#33BBEE", "#009988", "#EE7733", "#997700", "#CCDDAA")
-names(tcat.col) = c("CD4_Naive", "CD4_CM", "Treg", "CD4_EM", "CD8_Naive", "CD8_CM", "CD8_EM", "CD8_TEMRA", "MAIT", "gdT")
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # ggplot theme

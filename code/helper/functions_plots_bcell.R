@@ -319,8 +319,6 @@ get_sBCMA_data <- function(pdata){
     dplyr::select(SAMPLE_ID, BCMA_NG_ML) %>%
     dplyr::rename(sbcma_day30 = "BCMA_NG_ML")
 
-  imm.s = pdata$pdata.imm.s
-
   # sBCMA fold change
   sbcma_change = crs_data[c("SAMPLE_ID", "CRS_GRADE", "CRP_MAX", "CRP_BASE")] %>%
     dplyr::left_join(clin_data[,c("SAMPLE_ID", "BEST_RESPONSE_CONSENSUS")]) %>%
@@ -328,7 +326,51 @@ get_sBCMA_data <- function(pdata){
     dplyr::left_join(sbcma_day_30) %>%
     dplyr::mutate(change = sbcma_day30 / sbcma_day0)
 
-  # Add CAR expansion
+
+  # Add IL-6
+  elisa_data$IL_6_PG_ML[elisa_data$IL_6_PG_ML %in% c(">> std range",">> Y range")] = max(as.numeric(elisa_data$IL_6_PG_ML),na.rm=T)
+  il6_day_0 = elisa_data %>%
+    dplyr::filter(DAY == "Day 0") %>%
+    dplyr::mutate(IL_6_PG_ML = as.numeric(IL_6_PG_ML)) %>%
+    dplyr::select(SAMPLE_ID, IL_6_PG_ML) %>%
+    dplyr::rename(il6_day0 = "IL_6_PG_ML")
+
+  il6_day_7 = elisa_data %>%
+    dplyr::filter(DAY == "Day 7") %>%
+    dplyr::mutate(IL_6_PG_ML = as.numeric(IL_6_PG_ML)) %>%
+    dplyr::select(SAMPLE_ID, IL_6_PG_ML) %>%
+    dplyr::rename(il6_day7 = "IL_6_PG_ML")
+
+  il6_la = elisa_data %>%
+    dplyr::filter(DAY == "LA") %>%
+    dplyr::mutate(IL_6_PG_ML = as.numeric(IL_6_PG_ML)) %>%
+    dplyr::select(SAMPLE_ID, IL_6_PG_ML) %>%
+    dplyr::rename(il6_la = "IL_6_PG_ML")
+
+  il6_day_30 = elisa_data %>%
+    dplyr::filter(DAY == "Day 30") %>%
+    dplyr::mutate(IL_6_PG_ML = as.numeric(IL_6_PG_ML)) %>%
+    dplyr::select(SAMPLE_ID, IL_6_PG_ML) %>%
+    dplyr::rename(il6_day30 = "IL_6_PG_ML")
+
+  il6_day_100 = elisa_data %>%
+    dplyr::filter(DAY == "Day 100") %>%
+    dplyr::mutate(IL_6_PG_ML = as.numeric(IL_6_PG_ML)) %>%
+    dplyr::select(SAMPLE_ID, IL_6_PG_ML) %>%
+    dplyr::rename(il6_day100 = "IL_6_PG_ML")
+
+  # il6 fold change
+  sbcma_change = sbcma_change %>%
+    dplyr::left_join(il6_day_0) %>%
+    dplyr::left_join(il6_la) %>%
+    dplyr::left_join(il6_day_7) %>%
+    dplyr::left_join(il6_day_30) %>%
+    dplyr::left_join(il6_day_100) %>%
+    dplyr::mutate(il6_diff = il6_day30 - il6_day0)
+
+  imm.s = pdata$pdata.imm.s
+
+    # Add CAR expansion
   max_car = imm.s %>%
     dplyr::group_by(SAMPLE_ID) %>%
     dplyr::slice_max(CD3_CAR_PERC,na_rm = TRUE,with_ties=FALSE) %>%
